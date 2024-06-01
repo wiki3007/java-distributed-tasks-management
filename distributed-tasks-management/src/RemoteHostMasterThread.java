@@ -1,7 +1,4 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -13,11 +10,11 @@ import java.util.concurrent.*;
  * Receives tasks from Main Server and executes them
  */
 public class RemoteHostMasterThread implements Callable<String> {
-    private static int globalHostId = 0;
     /**
      * ID of Remote Host Master Thread for identification by Main Server
      */
     private int hostId;
+    private int taskId = 0;
 
     /**
      * ArrayList of tasks to execute
@@ -58,6 +55,8 @@ public class RemoteHostMasterThread implements Callable<String> {
      */
     int commandsListIndex = 0;
 
+    int currentWorkingThread = -1;
+
     /**
      * Creates a new remote host master thread object.
      * Responsible for network communications and handling the threads that later have their results returned to the server
@@ -65,10 +64,10 @@ public class RemoteHostMasterThread implements Callable<String> {
      * @param port Network port over which remote host communicates with
      * @throws IOException If stuff breaks
      */
-    public RemoteHostMasterThread(InetAddress serverAddress, int port) throws IOException {
-        this.hostId = globalHostId++;
+    public RemoteHostMasterThread(InetAddress serverAddress, int port, int id) throws IOException {
+        this.hostId = id;
         this.socket = new Socket(serverAddress, port);
-        socket.setSoTimeout(5000);
+        socket.setSoTimeout(1000);
         receiveMsg = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         sendMsg = new PrintWriter(socket.getOutputStream(), true);
     }
@@ -82,7 +81,7 @@ public class RemoteHostMasterThread implements Callable<String> {
         {
             for (int j=i+1; j<taskArray.size(); j++)
             {
-                if (taskArray.get(i).getTaskPriority() < taskArray.get(j).getTaskPriority())
+                if (taskArray.get(i).getTaskPriority() > taskArray.get(j).getTaskPriority())
                 {
                     RemoteHostTask temp = taskArray.get(i);
                     taskArray.set(i, taskArray.get(j));
@@ -95,46 +94,63 @@ public class RemoteHostMasterThread implements Callable<String> {
     /**
      * Sorts the taskArray and blocks all but the oldest, highest priority thread
      */
-    public void doPriorityCheck(){
+    private void doPriorityCheck(){
+        //System.out.println("PRIORITY BEFORE SORT");
         sortTaskArray();
+        //System.out.println("PRIORITY AFTER SORT");
 
         // find the ID of the first not yet finished task
         int firstUndoneTask=0;
-        for (int i=0; i<taskArrayFuture.size(); i++)
+
+        if (taskArray.size() >= 2)
         {
-            if (!taskArrayFuture.get(i).isDone())
+            for (int i=0; i<taskArray.size(); i++)
             {
-                firstUndoneTask = i;
-                break;
+                //System.out.println("FUTURE DONE TEST PARITY");
+                if (!taskArray.get(i).getStatus().equals("Done"))
+                {
+                    firstUndoneTask = i;
+                    break;
+                }
+                //System.out.println("FUTURE AFTER PARITY");
+            }
+            currentWorkingThread = firstUndoneTask;
+
+            // then wake it up and put every task after it to sleep
+            //System.out.println("PRIORITY BEFORE FLAG");
+            taskArray.get(firstUndoneTask).lowPriorityFlag = false;
+            //System.out.println("PRIORITY AFTER FLAG");
+            //System.out.println("HOST BEFORE WAKEUP");
+            for (int i= firstUndoneTask+1; i<taskArray.size(); i++)
+            {
+                taskArray.get(i).lowPriorityFlag = true;
             }
         }
-
-        // then wake it up and put every task after it to sleep
-        taskArray.get(firstUndoneTask).lowPriorityFlag = false;
-        for (int i= firstUndoneTask+1; i<taskArray.size(); i++)
-        {
-            taskArray.get(i).lowPriorityFlag = true;
-        }
-        taskArray.get(firstUndoneTask).notify();
+        //System.out.println("HOST AFTER WAKEUP");
+        //taskArray.get(firstUndoneTask).notify(); // doing notify just locks up the entire thread indefinitely
     }
 
     /**
      * Creates new task and puts it in the taskArray
      * @param taskPriority priority of the new task
      */
-    public void startNewTask(int taskPriority){
-        RemoteHostTask temp = new RemoteHostTask(taskPriority);
+    private void startNewTask(int taskPriority){
+        //System.out.println("TASK CREATEAD");
+        RemoteHostTask temp = new RemoteHostTask(taskId, taskPriority);
+        taskId++;
         taskArray.add(temp);
+        taskArrayFuture.add(exec.submit(temp));
 
         doPriorityCheck();
-        taskArrayFuture.add(exec.submit(temp));
+        //System.out.println("AFTER PRIORITY CHECK");
+
     }
 
     /**
      * Get ArrayList of tasks being executed by the remote host
      * @return ArrayList of RemoteHostTask class
      */
-    public ArrayList<RemoteHostTask> getRemoteHostTasks()
+    private ArrayList<RemoteHostTask> getRemoteHostTasks()
     {
         return taskArray;
     }
@@ -144,7 +160,7 @@ public class RemoteHostMasterThread implements Callable<String> {
      * @param remoteHostTaskId ID of the task to change the priority of
      * @param priority the new priority
      */
-    public void setRemoteHostTaskPriority(int remoteHostTaskId, int priority){
+    private void setRemoteHostTaskPriority(int remoteHostTaskId, int priority){
         for (RemoteHostTask task : taskArray)
         {
             if (task.getTaskId() == remoteHostTaskId)
@@ -160,20 +176,20 @@ public class RemoteHostMasterThread implements Callable<String> {
      * @throws InterruptedException If thread interrupted while exchanging
      */
     private void readCommands() throws InterruptedException, IOException {
+        //System.out.println("HOST READING COMMANDS");
         try
         {
             while (true) // keep reading until .readLine throws a timeout
             {
                 String command = receiveMsg.readLine();
+                //System.out.println(" HOST READ " + command);
                 commandsList.add(command);
             }
         }
         catch (SocketTimeoutException waitTooLong)
         {
             // means no more messages to read, so just go on with your life
-        }
-        finally {
-            commandRequest = false;
+            //System.out.println("HOST DIDNT READ COMMANDS");
         }
     }
 
@@ -185,31 +201,56 @@ public class RemoteHostMasterThread implements Callable<String> {
     @Override
     public String call() throws Exception {
         // notify whichever server thread that's listening who he's talking with
-        sendMsg.println(hostId);
+        //sendMsg.println(hostId);
+
 
         boolean keepAlive = true;
+        int delayCounter = 0;
         while (keepAlive)
         {
+            //System.out.println("REMOTEHOSTCHECKIN");
+            doPriorityCheck();
+                    /*
+            delayCounter++;
+            if (delayCounter == Integer.MAX_VALUE)
+            {
+                System.out.println("\t\t\t\t\t\t\t\t\tSDSADSAD");
+                delayCounter = 0;
+            }
+
+                     */
+            for (RemoteHostTask task : taskArray)
+            {
+                //System.out.println(task.getTaskId() + " " + task.getStatus());
+            }
+            //System.out.println("HOST MAIN LOOP");
             // if request for incoming commands, read them
-            /**
+            /*
             if (commandRequest)
             {
                 readCommands();
             }
-            **/
+            */
             // read all pending commands
             readCommands();
+            //System.out.println("HOST AFTER READING COMMANDS (" + commandsListIndex + " / " + commandsList.size() + ")");
 
             // process all the still unfinished commands
             while (commandsListIndex < commandsList.size())
             {
+                //System.out.println(commandsListIndex + " / " + commandsList.size());
+                //System.out.println("HOST PARSING COMMANDS");
                 // process commands
+                System.out.println("host parsing command (" + commandsListIndex + " / " + (commandsList.size()-1) + ") " + commandsList.get(commandsListIndex));
                 String command = commandsList.get(commandsListIndex);
-
+                commandsListIndex++;
+                ArrayList<String> components;
                 switch (command)
                 {
                     case "EXIT_THREAD": // 1 string in buffer
                     case "HOST_EXIT_THREAD": // 1 string in buffer
+                        sendMsg.println("HOST_EXITING");
+                        exec.shutdownNow();
                         keepAlive = false;
                         break;
                     case "HOST_START_TASK": // 1 string and 1 arg in buffer
@@ -223,18 +264,59 @@ public class RemoteHostMasterThread implements Callable<String> {
                         setRemoteHostTaskPriority(Integer.parseInt(commandsList.get(commandsListIndex)), Integer.parseInt(commandsList.get(commandsListIndex+1)));
                         commandsListIndex += 2;
                     case "HOST_RETURN_TASK": // 1 string, 1 arg in buffer, 1 string return
+                        sendMsg.println("RESPONSE_GET_TASK");
                         int taskId = Integer.parseInt(commandsList.get(commandsListIndex));
                         commandsListIndex++;
-                        sendMsg.println(taskArray.get(taskId));
+                        components = new ArrayList<>();
+                        // task id, priority, status, result
+                        components.add(String.valueOf(taskId));
+                        components.add(String.valueOf(taskArray.get(taskId).getTaskPriority()));
+                        components.add(taskArray.get(taskId).getStatus());
+                        components.add(taskArray.get(taskId).getResult());
+                        //System.out.println(components);
+                        sendMsg.println(components);
                         break;
                     case "HOST_RETURN_ALL_TASKS": // 1 string in buffer, 1 string return
-                        sendMsg.println(taskArray);
+                        sendMsg.println("RESPONSE_GET_ALL_TASKS");
+                        ArrayList<ArrayList<String>> componentsArrayArray = new ArrayList<>();
+                        for (RemoteHostTask task : taskArray)
+                        {
+                            components = new ArrayList<>();
+                            components.add(String.valueOf(task.getTaskId()));
+                            components.add(String.valueOf(task.getTaskPriority()));
+                            components.add(task.getStatus());
+                            components.add(task.getResult());
+                            componentsArrayArray.add(components);
+                        }
+                        sendMsg.println(componentsArrayArray);
+                        System.out.println("RETURNING ALL TASKS HOST " + hostId);
                         break;
-
+                    default:
+                        break;
                 }
-                commandsListIndex++;
+                //serialOut.close();
+                //System.out.println("HOST DONE PARSING");
+
             }
+
+            // check if thread is done
+
+            /*
+            for (int i=currentWorkingThread; i<taskArray.size(); i++)
+            {
+                if (!taskArray.get(i).getStatus().equals("Done"))
+                {
+                    currentWorkingThread = i;
+                    taskArrayFuture.get(i).notify();
+                    break;
+                }
+            }
+
+             */
+            //System.out.println("HOST END OF LOOP");
         }
+        System.out.println("HOSTTHREADEND");
+        exec.shutdown();
         return null;
     }
 }

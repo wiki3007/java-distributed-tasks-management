@@ -1,11 +1,15 @@
+import java.io.Serializable;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Thread task executed by remote host
  */
-public class RemoteHostTask implements Callable<String> {
+public class RemoteHostTask implements Callable<String>{
+    //private static final long serialversionUID = 15643123L;
+    private static ReentrantLock lock = new ReentrantLock();
     /**
      * Global Task ID for automatic ID assignment when creating new tasks
      */
@@ -15,8 +19,9 @@ public class RemoteHostTask implements Callable<String> {
      */
     private int taskId, taskPriority;
 
-    private String result = "";
+    private String result = "!";  // ! is beyond what the task can generate, so just assume this means empty
     boolean lowPriorityFlag = false;
+    String status = "Created";
 
     /**
      * RemoteHostTask constructor, manual ID input
@@ -34,10 +39,19 @@ public class RemoteHostTask implements Callable<String> {
      * RemoteHostTask constructor, automatic ID input
      * @param taskPriority Priority of task, higher number means higher priority
      */
-    RemoteHostTask(int taskPriority)
+    RemoteHostTask(int taskId, int taskPriority)
     {
-        this.taskId = globalTaskId++;
+        //System.out.println("tast started");
+        //lock.lock();
+        try
+        {
+            this.taskId = taskId;
+        }
+        finally {
+            //lock.unlock();
+        }
         this.taskPriority = taskPriority;
+        System.out.println("NEW TASK WITH ID " + taskId);
     }
 
     /**
@@ -84,6 +98,16 @@ public class RemoteHostTask implements Callable<String> {
                 ']';
     }
 
+    public String getStatus()
+    {
+        return status;
+    }
+
+    public String getResult()
+    {
+        return result;
+    }
+
     /**
      * Thread locks up when lowPriorityFlag is set when Remote Host Master Thread receives
      * a task with higher priority.
@@ -93,8 +117,11 @@ public class RemoteHostTask implements Callable<String> {
     public void lowPriorityWait() throws InterruptedException {
         while (lowPriorityFlag)
         {
-            wait(60000);
+            status = "LowPriorityWait";
+            //System.out.print("");
+            //wait(5000); // can't have this sleep either, but it just bricks the task. WHAT'S THE POINT OF SLEEPS AND WAITS IF THEY JUST KILL THE GODDAMN THREAD
         }
+        status = "Working";
     }
 
     /**
@@ -105,30 +132,51 @@ public class RemoteHostTask implements Callable<String> {
     public String call() {
         try
         {
+            status = "Working";
             lowPriorityWait();
             Random rng = new Random();
+            //System.out.println("TASK BEFORE SLEEP");
             int length = rng.nextInt(50, 150); // randomize length of result
             for (int i=0; i<length; i++)
             {
                 lowPriorityWait();
-                Thread.sleep(rng.nextInt(1, 10) * 1000L); // simulates doing whatever calculation
-                result += rng.nextInt(35, 122); // random ASCII character form # to z
+                Thread.sleep(rng.nextInt(1, 25)); // simulates doing whatever calculation, this breaks the loop too, because why not
+                int asciiCode;
+                String charToAdd;
+                do {
+                    asciiCode = rng.nextInt(35, 122);
+                    charToAdd = String.valueOf((char) asciiCode);
+                }
+                while (asciiCode == 92); // get rid of this stupid \ slash thingy, it breaks quoatation marks and probably a million other things I haven't notice, but mainly quotation marks
+
+
+                if (!result.equals("!")) // again, ! means empty since it's ASCII 33
+                {
+                    result = result.concat(charToAdd); // random ASCII character form # to z
+                }
+                else result = charToAdd;
+                //System.out.println(result);
             }
             lowPriorityWait();
+            //System.out.println(result);
             return result;
         }
         catch (InterruptedException interrupted)
         {
-            result += "+----+Task interrupted+----+";
+            result += "!----!Task interrupted!----!";
             return result;
         }
         catch (CancellationException cancelled)
         {
-            result += "+----+Task cancelled+----+";
+            result += "!----!Task cancelled!----!";
             return result;
         }
         finally {
-            notifyAll();
+            status = "Done";
+            //notifyAll();
+            //System.out.println("TASK REPORTING " + taskId + " " + status + " " + result);
+            System.out.println("TASKEND " + taskId);
         }
+
     }
 }
