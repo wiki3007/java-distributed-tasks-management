@@ -1,6 +1,7 @@
 // NOTE: get rid of all the sendCommandTo functions in the main loop once the GUI has a manual option send them out
 // or don't, do whatever
 // Also starting too many new tasks at once maxes out the CPU. No, I will not optimize it
+// Sometimes multiple tasks of same host will have the "Working" status in the database. They just got caught in the middle of being updated when their data was sent out.
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -206,7 +207,7 @@ public class ServerThread implements Callable<String> {
             }
 
             // create questions table
-            if (execUpdate("CREATE TABLE `tasks` (`hostId` INT(4) NOT NULL, `taskId` INT(4) NOT NULL, `priority` INT(4) NULL, `status` VARCHAR(30) NULL, `result` VARCHAR(200) NULL, PRIMARY KEY (`hostId`, `taskId`))") != -1)
+            if (execUpdate("CREATE TABLE `tasks` (`hostId` INT(4) NOT NULL, `taskId` INT(4) NOT NULL, `priority` INT(4) NULL, `status` VARCHAR(30) NULL, `result` VARCHAR(200) NULL, `serverExecutionTime` INT(8) NULL, `clientExecutionTime` INT(8) NULL, PRIMARY KEY (`hostId`, `taskId`))") != -1)
             {
                 //System.out.println("Table \"Questions\" created");
             }
@@ -259,9 +260,9 @@ public class ServerThread implements Callable<String> {
             // uncommenting any of these sets of sendCommandTo maxes out your CPU. Don't start too many at once. Or just too many in general
             sendCommandTo(serverCom.get(0).talksWith, "HOST_START_TASK");
             sendCommandTo(serverCom.get(0).talksWith, String.valueOf(delayCounter));
-            //delayCounter++;
-            sendCommandTo(serverCom.get(1).talksWith, "HOST_START_TASK");
-            sendCommandTo(serverCom.get(1).talksWith, String.valueOf(delayCounter));
+            delayCounter++;
+            //sendCommandTo(serverCom.get(1).talksWith, "HOST_START_TASK");
+            //sendCommandTo(serverCom.get(1).talksWith, String.valueOf(delayCounter));
             //System.out.println("test");
             //addNewRemoteHost();
 
@@ -292,6 +293,8 @@ public class ServerThread implements Callable<String> {
                     int priority = -1;
                     String status = "";
                     String result = "";
+                    long serverTimeTaken = 0;
+                    long clientTimeTaken = 0;
                     while (set.next()) // even though there's only one result, this has to be in a while loop, because ???, there's only one result anyway, but it's just weird
                     {
                         hostId = set.getInt("hostId");
@@ -299,31 +302,26 @@ public class ServerThread implements Callable<String> {
                         priority = set.getInt("priority");
                         status = set.getString("status");
                         result = set.getString("result");
+                        serverTimeTaken = set.getLong("serverExecutionTime");
+                        clientTimeTaken = set.getLong("clientExecutionTime");
                         //System.out.println(hostId + " " + taskId + " " + priority + " " + status + " " + result);
                     }
 
                     if (hostId != Integer.parseInt(task.get(0)) && taskId != Integer.parseInt(task.get(1))) // if no conflict with primary keys
                     {
                         //System.out.println("TASK " + taskId + " IS INSERT");
-                        if (execUpdate("INSERT INTO `tasks` VALUES(" + task.get(0) + ", " +  task.get(1) + ", " + task.get(2) + ", \"" + task.get(3) +  "\", \"" + task.get(4) + "\")") != -1);
+                        if (execUpdate("INSERT INTO `tasks` VALUES(" + task.get(0) + ", " +  task.get(1) + ", " + task.get(2) + ", \"" + task.get(3) +  "\", \"" + task.get(4) + "\", " + task.get(5) + ", " + task.get(6) + ")") != -1);
                         {
                             //System.out.println("RECORD " + hostId + " " + taskId + " " + priority + " " + status + " " + result + " INSERTED");
                         }
                     }
-                    if (hostId == Integer.parseInt(task.get(0)) && taskId == Integer.parseInt(task.get(1)) && priority == Integer.parseInt(task.get(2)) && status.equals(task.get(3)) && result.equals(task.get(4))) // if row is the same, do nothing
+                    else if (priority != Integer.parseInt(task.get(2)) || !status.equals(task.get(3)) || !result.equals(task.get(4))) // if row is different, then update it, executionTimes only change when taks is done, so ignore it in the checks
                     {
-                        //System.out.println("TASK " + taskId + " IS UNCHANGED");
-                        continue;
-                    }
-                    else // else update it because it already exists, but is different
-                    {
-                        //System.out.println("TASK " + taskId + " IS UPDATE");
-                        if (execUpdate("UPDATE `tasks` SET priority = " + task.get(2) + ", status = \"" + task.get(3) + "\", result = \"" + task.get(4) + "\" WHERE hostId = " +  task.get(0) + " AND taskId = " + task.get(1)) != -1)
+                        if (execUpdate("UPDATE `tasks` SET priority = " + task.get(2) + ", status = \"" + task.get(3) + "\", result = \"" + task.get(4) + "\", serverExecutionTime = " + task.get(5) + ", clientExecutionTime = " + task.get(6) + " WHERE hostId = " +  task.get(0) + " AND taskId = " + task.get(1)) != -1)
                         {
                             //System.out.println("RECORD " + hostId + " " + taskId + " " + priority + " " + status + " " + result + " UPDATED");
                         }
                     }
-
                 }
                 //keepAlive = false;
             }

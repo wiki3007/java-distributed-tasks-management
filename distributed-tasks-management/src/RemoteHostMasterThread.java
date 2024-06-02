@@ -273,6 +273,8 @@ public class RemoteHostMasterThread implements Callable<String> {
                         components.add(String.valueOf(taskArray.get(taskId).getTaskPriority()));
                         components.add(taskArray.get(taskId).getStatus());
                         components.add(taskArray.get(taskId).getResult());
+                        components.add(String.valueOf(taskArray.get(taskId).getServerTimeTaken()));
+                        components.add(String.valueOf(taskArray.get(taskId).getClientTimeTaken()));
                         //System.out.println(components);
                         sendMsg.println(components);
                         break;
@@ -286,6 +288,8 @@ public class RemoteHostMasterThread implements Callable<String> {
                             components.add(String.valueOf(task.getTaskPriority()));
                             components.add(task.getStatus());
                             components.add(task.getResult());
+                            components.add(String.valueOf(task.getServerTimeTaken()));
+                            components.add(String.valueOf(task.getClientTimeTaken()));
                             componentsArrayArray.add(components);
                         }
                         sendMsg.println(componentsArrayArray);

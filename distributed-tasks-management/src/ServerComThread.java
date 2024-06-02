@@ -209,7 +209,7 @@ public class ServerComThread implements Callable<String> {
                             //System.out.println(counter + "\t" + rawArraySplit[i%4]);
                             // search for if given task was already read, if yes, then update it, if no then add it
                             counter++;
-                            if (counter == 4)
+                            if (counter == 6)
                             {
                                 componentAlreadyExists = false;
                                 component = null;
@@ -283,6 +283,10 @@ class RemoteHostTaskDummy
      * Internal values that will be put into the database
      */
     public String status, result;
+    /**
+     * Internal values that will be put into the database
+     */
+    public long serverTimeTaken, clientTimeTaken;
 
     /**
      * Constructor for this class that exists as Serialization pre-alpha version. IDK what I'm even saying anymore, just end this misery already
@@ -296,6 +300,8 @@ class RemoteHostTaskDummy
         this.priority = Integer.parseInt(components.get(1));
         this.status = components.get(2);
         this.result = components.get(3);
+        this.serverTimeTaken = Long.parseLong(components.get(4));
+        this.clientTimeTaken = Long.parseLong(components.get(5));
     }
 
     /**
@@ -310,6 +316,8 @@ class RemoteHostTaskDummy
         components.add(String.valueOf(priority));
         components.add(status);
         components.add(result);
+        components.add(String.valueOf(serverTimeTaken));
+        components.add(String.valueOf(clientTimeTaken));
 
         return components;
     }
