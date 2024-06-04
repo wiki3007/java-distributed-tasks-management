@@ -187,7 +187,7 @@ public class RemoteHostTask implements Callable<String>{
             for (int i=0; i<length; i++)
             {
                 lowPriorityWait();
-                Thread.sleep(rng.nextInt(1, 25)); // simulates doing whatever calculation, this no longer breaks the thread for no apparent reason, thanks for making me look insane java
+                Thread.sleep(rng.nextInt(3000, 5000)); // simulates doing whatever calculation, this no longer breaks the thread for no apparent reason, thanks for making me look insane java
                 int asciiCode;
                 String charToAdd;
                 do {

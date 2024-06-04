@@ -224,9 +224,12 @@ public class ServerThread implements Callable<String> {
         {
             if (serverCom.isEmpty())
             {
+                /*
                 addNewRemoteHost();
                 sendCommandTo(0, "HOST_START_TASK");
                 sendCommandTo(0, "7");
+
+                 */
 
                 /*
                 sendCommandTo(0, "HOST_START_TASK");
@@ -236,10 +239,13 @@ public class ServerThread implements Callable<String> {
 
                  */
 
-
+                /*
                 addNewRemoteHost();
                 sendCommandTo(1, "HOST_START_TASK");
                 sendCommandTo(1, "1");
+
+                 */
+
                 /*
                 sendCommandTo(1, "HOST_START_TASK");
                 sendCommandTo(1, "7");
@@ -255,12 +261,12 @@ public class ServerThread implements Callable<String> {
             // can't have sleep here either, else it just instaquits
             // nevermind, it just decides to fix itself. cool. really cool.
             // I don't know why, but this can't be at the beginning or end of the loop, so instead it has to just awkwardly sit in the middle here
-            Thread.sleep(1000);
+            Thread.sleep(2000);
             System.out.println("SERVER MAIN LOOP");
             // uncommenting any of these sets of sendCommandTo maxes out your CPU. Don't start too many at once. Or just too many in general
-            sendCommandTo(serverCom.get(0).talksWith, "HOST_START_TASK");
-            sendCommandTo(serverCom.get(0).talksWith, String.valueOf(delayCounter));
-            delayCounter++;
+            //sendCommandTo(serverCom.get(0).talksWith, "HOST_START_TASK");
+            //sendCommandTo(serverCom.get(0).talksWith, String.valueOf(delayCounter));
+            //delayCounter++;
             //sendCommandTo(serverCom.get(1).talksWith, "HOST_START_TASK");
             //sendCommandTo(serverCom.get(1).talksWith, String.valueOf(delayCounter));
             //System.out.println("test");

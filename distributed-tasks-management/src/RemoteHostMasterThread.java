@@ -13,7 +13,7 @@ public class RemoteHostMasterThread implements Callable<String> {
     /**
      * ID of Remote Host Master Thread for identification by Main Server
      */
-    private int hostId;
+    public int hostId;
     private int taskId = 0;
 
     /**
