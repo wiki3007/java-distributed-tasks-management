@@ -1,10 +1,8 @@
-import java.io.Serializable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Thread task executed by remote host
@@ -161,6 +159,7 @@ public class RemoteHostTask implements Callable<String>{
         while (lowPriorityFlag)
         {
             status = "LowPriorityWait";
+            Thread.sleep(1000); // I love it when previously code breaking stuff just starts working for no reason
             //System.out.print("");
             //wait(5000); // can't have this sleep either, but it just bricks the task. WHAT'S THE POINT OF SLEEPS AND WAITS IF THEY JUST KILL THE GODDAMN THREAD
         }
@@ -187,7 +186,7 @@ public class RemoteHostTask implements Callable<String>{
             for (int i=0; i<length; i++)
             {
                 lowPriorityWait();
-                Thread.sleep(rng.nextInt(3000, 5000)); // simulates doing whatever calculation, this no longer breaks the thread for no apparent reason, thanks for making me look insane java
+                Thread.sleep(rng.nextInt(100, 500)); // simulates doing whatever calculation, this no longer breaks the thread for no apparent reason, thanks for making me look insane java
                 int asciiCode;
                 String charToAdd;
                 do {
@@ -206,17 +205,19 @@ public class RemoteHostTask implements Callable<String>{
             }
             lowPriorityWait();
             //System.out.println(result);
-            return result;
+            status = "Done";
         }
         catch (InterruptedException interrupted)
         {
-            result += "!----!Task interrupted!----!";
-            return result;
+            //System.out.println("TASK INTERRUPTED TASK");
+            status = "Interrupted";
+            //result += "!----!Task interrupted!----!";
         }
         catch (CancellationException cancelled)
         {
-            result += "!----!Task cancelled!----!";
-            return result;
+            //System.out.println("TASK CANCELLED TASK");
+            status = "Cancelled";
+            //result += "!----!Task cancelled!----!";
         }
         finally {
             Instant end = Instant.now();
@@ -224,11 +225,11 @@ public class RemoteHostTask implements Callable<String>{
             timeTakenClient = Duration.between(start, end).toMillis() - timeWasted;
             timeTakenServer = Duration.between(startServer, end).toMillis();
             System.out.println();
-            status = "Done";
+
             //notifyAll();
             //System.out.println("TASK REPORTING " + taskId + " " + status + " " + result);
-            System.out.println("TASKEND " + taskId);
+            System.out.println("TASKEND " + taskId + " " + status);
         }
-
+        return result;
     }
 }

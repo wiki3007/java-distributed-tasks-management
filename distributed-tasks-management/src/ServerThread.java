@@ -115,10 +115,15 @@ public class ServerThread implements Callable<String> {
     {
         if (id < remoteHost.size())
         {
+
             Future<String> host = remoteHostFuture.get(id);
+            host.cancel(interruptIfRunning);
+            /*
             if (host.isCancelled()) return;
             else if (host.isDone()) return;
             host.cancel(interruptIfRunning);
+
+             */
         }
     }
 

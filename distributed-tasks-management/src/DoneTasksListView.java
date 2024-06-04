@@ -1,3 +1,4 @@
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -9,26 +10,28 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
-import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.text.Font;
 import javafx.util.Callback;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class DoneTasksListView {
     private ServerThread serverThread;
+    private BorderPane borderPane;
     private TableView doneTasksTable = new TableView<>();
     private ObservableList<ObservableList> data = FXCollections.observableArrayList();
 
-    public DoneTasksListView(ServerThread serverThread){
+    public DoneTasksListView(ServerThread serverThread, BorderPane borderPane){
         this.serverThread = serverThread;
+        this.borderPane = borderPane;
     }
 
     public Parent getView() throws SQLException {
         GridPane layout = new GridPane();
+        ChartView chartView = new ChartView(this.serverThread, this.borderPane, this);
 
         TableView doneTasksTable = new TableView();
 
@@ -38,7 +41,7 @@ public class DoneTasksListView {
 
         Button ganttButton = new Button("Chart of tasks time execution");
         ganttButton.setOnAction((event) ->{
-
+            this.borderPane.setCenter(chartView.getView());
         });
         Button refreshButton = new Button("Refresh table");
         refreshButton.setOnAction((event) ->{
@@ -49,7 +52,24 @@ public class DoneTasksListView {
             }
         });
 
-        buttonGroups.getChildren().addAll(ganttButton);
+        Thread refreshTable = new Thread(() -> {
+            try {
+                Thread.sleep(5000);
+                Platform.runLater(() -> {
+                    try {
+                        this.createTable();
+                    } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        refreshTable.setDaemon(true);
+        refreshTable.start();
+
+        buttonGroups.getChildren().addAll(ganttButton, refreshButton);
         buttonGroups.setSpacing(10);
 
         layout.setAlignment(Pos.CENTER);

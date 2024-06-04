@@ -145,7 +145,8 @@ public class ClientsListView {
         });
 
         upButtonGroup.getChildren().addAll(createHostButton, endHostButton, chooseIfRunningText, chooseIfRunning, refreshButton);
-        downButtonGroup.getChildren().addAll(startTaskButton, cancelTaskButton, changeTaskPriorityButton, priorityText, priorityField);
+        //downButtonGroup.getChildren().addAll(startTaskButton, cancelTaskButton, changeTaskPriorityButton, priorityText, priorityField);
+        downButtonGroup.getChildren().addAll(startTaskButton, priorityText, priorityField);
 
         upButtonGroup.setSpacing(10);
         downButtonGroup.setSpacing(10);

@@ -13,7 +13,7 @@ public class RemoteHostMasterThread implements Callable<String> {
     /**
      * ID of Remote Host Master Thread for identification by Main Server
      */
-    public int hostId;
+    private int hostId;
     private int taskId = 0;
 
     /**
@@ -107,7 +107,8 @@ public class RemoteHostMasterThread implements Callable<String> {
             for (int i=0; i<taskArray.size(); i++)
             {
                 //System.out.println("FUTURE DONE TEST PARITY");
-                if (!taskArray.get(i).getStatus().equals("Done"))
+                String status = taskArray.get(i).getStatus();
+                if (!status.equals("Done") && !status.equals("Interrupted") && !status.equals("Cancelled"))
                 {
                     firstUndoneTask = i;
                     break;
@@ -208,29 +209,8 @@ public class RemoteHostMasterThread implements Callable<String> {
         int delayCounter = 0;
         while (keepAlive)
         {
-            //System.out.println("REMOTEHOSTCHECKIN");
             doPriorityCheck();
-                    /*
-            delayCounter++;
-            if (delayCounter == Integer.MAX_VALUE)
-            {
-                System.out.println("\t\t\t\t\t\t\t\t\tSDSADSAD");
-                delayCounter = 0;
-            }
 
-                     */
-            for (RemoteHostTask task : taskArray)
-            {
-                //System.out.println(task.getTaskId() + " " + task.getStatus());
-            }
-            //System.out.println("HOST MAIN LOOP");
-            // if request for incoming commands, read them
-            /*
-            if (commandRequest)
-            {
-                readCommands();
-            }
-            */
             // read all pending commands
             readCommands();
             //System.out.println("HOST AFTER READING COMMANDS (" + commandsListIndex + " / " + commandsList.size() + ")");
@@ -238,8 +218,6 @@ public class RemoteHostMasterThread implements Callable<String> {
             // process all the still unfinished commands
             while (commandsListIndex < commandsList.size())
             {
-                //System.out.println(commandsListIndex + " / " + commandsList.size());
-                //System.out.println("HOST PARSING COMMANDS");
                 // process commands
                 System.out.println("host parsing command (" + commandsListIndex + " / " + (commandsList.size()-1) + ") " + commandsList.get(commandsListIndex));
                 String command = commandsList.get(commandsListIndex);
@@ -258,11 +236,33 @@ public class RemoteHostMasterThread implements Callable<String> {
                         commandsListIndex++;
                         break;
                     case "HOST_CANCEL_TASK": // 1 string and 2 arg in buffer
-                        taskArrayFuture.get(Integer.parseInt(commandsList.get(commandsListIndex))).cancel(Boolean.parseBoolean(commandsList.get(commandsListIndex+1)));
-                        commandsListIndex += 2;
+                        //System.out.println("CANCEL START");
+                        int taskIdCancel = Integer.parseInt(commandsList.get(commandsListIndex));
+                        commandsListIndex++;
+                        //System.out.println("CANCEL ID " + taskIdCancel);
+                        String cancelIfRunning = commandsList.get(commandsListIndex);
+                        commandsListIndex++;
+                        //System.out.println("\t\t " + taskIdCancel + " " + cancelIfRunning);
+                        if (cancelIfRunning.equals("TRUE"))
+                        {
+                            //System.out.println("TASK CANCELLED HOST BEFORE");
+                            taskArrayFuture.get(taskIdCancel).cancel(true);
+                            //System.out.println("TASK CANCELLED HOST AFTER");
+                        }
+                        else if (cancelIfRunning.equals("FALSE"))
+                        {
+                            taskArrayFuture.get(taskIdCancel).cancel(false);
+                        }
+                        else
+                        {
+                            System.out.println("Cancel failed");
+                        }
+                        //doPriorityCheck();
+                        break;
                     case "HOST_CHANGE_PRIORITY": // 1 string and 2 arg in buffer
                         setRemoteHostTaskPriority(Integer.parseInt(commandsList.get(commandsListIndex)), Integer.parseInt(commandsList.get(commandsListIndex+1)));
                         commandsListIndex += 2;
+                        break;
                     case "HOST_RETURN_TASK": // 1 string, 1 arg in buffer, 1 string return
                         sendMsg.println("RESPONSE_GET_TASK");
                         int taskId = Integer.parseInt(commandsList.get(commandsListIndex));

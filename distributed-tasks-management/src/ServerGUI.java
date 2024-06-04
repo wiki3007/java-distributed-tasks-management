@@ -25,7 +25,7 @@ public class ServerGUI extends Application {
         BorderPane borderPane = new BorderPane();
 
         ClientsListView clientsListView = new ClientsListView(serverThread, stage);
-        DoneTasksListView doneTasksListView = new DoneTasksListView(serverThread);
+        DoneTasksListView doneTasksListView = new DoneTasksListView(serverThread, borderPane);
 
         Button clientsListButton = new Button("Clients list");
         Button doneTasksButton = new Button("Done tasks list");
@@ -50,7 +50,7 @@ public class ServerGUI extends Application {
 
         Scene scene = new Scene(borderPane, 720, 540);
 
-        stage.setTitle("Distrubuted tasks management - Server");
+        stage.setTitle("Distrubuted Tasks Management - Server");
         stage.setScene(scene);
         stage.show();
     }
