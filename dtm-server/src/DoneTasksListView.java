@@ -54,7 +54,8 @@ public class DoneTasksListView {
 
         Thread refreshTable = new Thread(() -> {
             try {
-                Thread.sleep(5000);
+                Thread.sleep(3000);
+                System.out.println("Thread running");
                 Platform.runLater(() -> {
                     try {
                         this.createTable();

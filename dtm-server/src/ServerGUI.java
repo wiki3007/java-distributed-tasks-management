@@ -1,4 +1,5 @@
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
@@ -24,7 +25,7 @@ public class ServerGUI extends Application {
         ToolBar toolBar = new ToolBar();
         BorderPane borderPane = new BorderPane();
 
-        ClientsListView clientsListView = new ClientsListView(serverThread, stage);
+        ClientsListView clientsListView = new ClientsListView(serverThread);
         DoneTasksListView doneTasksListView = new DoneTasksListView(serverThread, borderPane);
 
         Button clientsListButton = new Button("Clients list");
@@ -57,7 +58,9 @@ public class ServerGUI extends Application {
 
     public void stop(){
         serverThread.keepAlive = false;
-        exec.shutdown();
+        exec.shutdownNow();
+        System.out.println("Closing...");
+        Platform.exit();
     }
 
     public static void main(String[] args) throws SQLException, IOException {

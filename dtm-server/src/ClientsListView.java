@@ -1,4 +1,5 @@
 import javafx.application.Platform;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -7,6 +8,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.text.Font;
@@ -15,6 +17,7 @@ import javafx.util.Callback;
 import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.concurrent.ExecutionException;
 
 public class ClientsListView {
     private ServerThread serverThread;
@@ -23,7 +26,7 @@ public class ClientsListView {
     private Integer selectedHostId;
     private boolean chooseInterruptIfRunning = false;
 
-    public ClientsListView(ServerThread serverThread, Stage window){
+    public ClientsListView(ServerThread serverThread){
         this.serverThread = serverThread;
     }
 
@@ -33,18 +36,18 @@ public class ClientsListView {
         TextField priorityField = new TextField();
 
         Thread refreshTable = new Thread(() -> {
-            try {
-                Thread.sleep(5000);
-                Platform.runLater(() -> {
-                    try {
-                        this.createTable();
-                    } catch (SQLException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            Platform.runLater(() -> {
+                try {
+                    Thread.sleep(1500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                try {
+                    this.createTable();
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         });
         refreshTable.setDaemon(true);
         refreshTable.start();
@@ -52,7 +55,9 @@ public class ClientsListView {
         HBox downButtonGroup = new HBox();
         HBox upButtonGroup = new HBox();
 
+
         Button createHostButton = new Button("Create new host");
+        /*
         createHostButton.setOnAction((event) -> {
             try {
                 int id = ServerThread.id, priority;
@@ -70,15 +75,19 @@ public class ClientsListView {
                 throw new RuntimeException(e);
             } catch (SQLException e) {
                 throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         });
 
+         */
+
         Button endHostButton = new Button("End host");
         endHostButton.setOnAction((event) -> {
-            String temp = clientsTable.getSelectionModel().getSelectedItem().toString();
-            temp = temp.replaceAll("\\[", "").replaceAll("\\]","");
-            this.selectedHostId = Integer.valueOf(temp);
-            serverThread.cancelHost(this.selectedHostId, this.chooseInterruptIfRunning);
+            ServerComThread temp = (ServerComThread) this.clientsTable.getSelectionModel().getSelectedItem();
+            this.serverThread.sendCommandTo(temp, "HOST_EXIT_THREAD");
             try {
                 this.createTable();
             } catch (SQLException e) {
@@ -97,10 +106,9 @@ public class ClientsListView {
 
         Button startTaskButton = new Button("Start new task");
         startTaskButton.setOnAction((event) -> {
-            String temp = clientsTable.getSelectionModel().getSelectedItem().toString();
+            ServerComThread temp = (ServerComThread) this.clientsTable.getSelectionModel().getSelectedItem();
+            this.selectedHostId = temp.talksWith;
             int priority;
-            temp = temp.replaceAll("\\[", "").replaceAll("\\]","");
-            this.selectedHostId = Integer.valueOf(temp);
             if(this.selectedHostId == null){
                 return;
             }
@@ -144,9 +152,9 @@ public class ClientsListView {
             System.out.println(this.chooseInterruptIfRunning);
         });
 
-        upButtonGroup.getChildren().addAll(createHostButton, endHostButton, chooseIfRunningText, chooseIfRunning, refreshButton);
+        upButtonGroup.getChildren().addAll(refreshButton);
         //downButtonGroup.getChildren().addAll(startTaskButton, cancelTaskButton, changeTaskPriorityButton, priorityText, priorityField);
-        downButtonGroup.getChildren().addAll(startTaskButton, priorityText, priorityField);
+        downButtonGroup.getChildren().addAll(startTaskButton, priorityText, priorityField, endHostButton);
 
         upButtonGroup.setSpacing(10);
         downButtonGroup.setSpacing(10);
@@ -156,9 +164,15 @@ public class ClientsListView {
         layout.setHgap(10);
         layout.setPadding(new Insets(10, 10, 10, 10));
         Label title = new Label("Clients list");
+        Label serverAddress = new Label("Server IP address: " + this.serverThread.serverAddress.getHostAddress());
+        Label portText = new Label("Port: " + this.serverThread.port);
         title.setFont(Font.font("Arial", 20));
+        serverAddress.setFont(Font.font("Arial", 14));
+        portText.setFont(Font.font("Arial", 14));
 
         layout.add(title, 0, 0);
+        layout.add(serverAddress, 1, 0);
+        layout.add(portText, 2, 0);
         layout.add(upButtonGroup, 0, 1);
         layout.add(clientsTable, 0, 2);
         layout.add(downButtonGroup, 0, 3);
@@ -167,32 +181,23 @@ public class ClientsListView {
     }
 
     private void createTable() throws SQLException {
-        ResultSet rs = serverThread.searchDatabase("SELECT DISTINCT hostId FROM tasks WHERE status != 'Done'");
         clientsTable.getItems().clear();
         clientsTable.getColumns().clear();
 
-        for(int i = 0; i< rs.getMetaData().getColumnCount(); i++){
-            //We are using non property style for making dynamic table
-            final int j = i;
-            TableColumn col = new TableColumn(rs.getMetaData().getColumnName(i+1));
-            col.setCellValueFactory(new Callback<TableColumn.CellDataFeatures<ObservableList,String>,ObservableValue<String>>(){
-                public ObservableValue<String> call(TableColumn.CellDataFeatures<ObservableList, String> param) {
-                    return new SimpleStringProperty(param.getValue().get(j).toString());
-                }
-            });
+        TableColumn<ServerComThread, Integer> hostColumn = new TableColumn<>("Host ID");
+        hostColumn.setCellValueFactory(
+                p -> new SimpleIntegerProperty(p.getValue().talksWith).asObject()
+        );
+        this.clientsTable.getColumns().add(hostColumn);
 
-            clientsTable.getColumns().addAll(col);
+        if(this.serverThread.serverCom.isEmpty()){
+            return;
         }
 
-        while(rs.next()){
-            //Iterate Row
-            ObservableList<String> row = FXCollections.observableArrayList();
-            for(int i = 1; i<= rs.getMetaData().getColumnCount(); i++){
-                //Iterate Column
-                row.add(rs.getString(i));
+        for(ServerComThread host : this.serverThread.serverCom){
+            if(!host.assumeDead){
+                this.clientsTable.getItems().add(host);
             }
-            data.add(row);
         }
-        clientsTable.setItems(data);
     }
 }

@@ -27,7 +27,7 @@ public class ServerThread implements Callable<String> {
     /**
      * Array of server threads responsible for communicating with remote hosts over the network
      */
-    private ArrayList<ServerComThread> serverCom = new ArrayList<>();
+    public ArrayList<ServerComThread> serverCom = new ArrayList<>();
     /**
      * Array of communications server threads converted to Future class by ExecutorService
      */
@@ -38,7 +38,7 @@ public class ServerThread implements Callable<String> {
     /**
      * Port for receiving network communications
      */
-    private int port = 51707;
+    public int port = 51707;
     /**
      * Server Socket to handle network communications
      */

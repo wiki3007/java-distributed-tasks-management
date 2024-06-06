@@ -64,6 +64,9 @@ public class ServerComThread implements Callable<String> {
         sendMsg.println(talksWith);
     }
 
+    public int getTalksWith(){
+        return this.talksWith;
+    }
     /**
      * Receive command to send to remote host
      * @param command String of what to send to remote host

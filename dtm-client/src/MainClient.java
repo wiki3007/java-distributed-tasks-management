@@ -1,14 +1,11 @@
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Main {
+public class MainClient {
     public static void main(String[] args) throws IOException {
         Scanner in = new Scanner(System.in);
         String address;
