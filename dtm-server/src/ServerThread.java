@@ -31,7 +31,10 @@ public class ServerThread implements Callable<String> {
     /**
      * Array of communications server threads converted to Future class by ExecutorService
      */
-    private ArrayList<Future<String>> serverComFuture = new ArrayList<>();
+    //private ArrayList<Future<String>> serverComFuture = new ArrayList<>();
+    //private Future<ServerAwait> serverAwaitFuture = null;
+    private ServerAwait serverAwait = null;
+    private Future<ServerComThread> serverAwaitFuture;
     /**
      * Port for receiving network communications
      */
@@ -82,6 +85,8 @@ public class ServerThread implements Callable<String> {
      */
     PreparedStatement preparedStatement;
 
+    ExecutorService awaitExec = Executors.newFixedThreadPool(1);
+
     /**
      * ID to be used for identification of ServerComThread and RemoteHostMasterThread, same value for both if they're the ones talking with each other
      */
@@ -94,10 +99,11 @@ public class ServerThread implements Callable<String> {
     /**
      * Adds and immediately starts a new remote host
      */
-    public void addNewRemoteHost() throws IOException {
+    public void addNewRemoteHost() throws IOException, ExecutionException, InterruptedException {
         //RemoteHostMasterThread tempThread = new RemoteHostMasterThread(serverAddress, port, id);
         //remoteHost.add(tempThread);
         //remoteHostFuture.add(exec.submit(tempThread));
+        /*
         if (id != 0) // for every host other than first wait for the SoTimeout before moving on with the program
         {
             Socket socket = null;
@@ -108,7 +114,8 @@ public class ServerThread implements Callable<String> {
                 socket.setSoTimeout(1000);
                 ServerComThread tempServerCom = new ServerComThread(socket, id);
                 serverCom.add(tempServerCom);
-                serverComFuture.add(exec.submit(tempServerCom));
+                exec.submit(tempServerCom);
+                //serverComFuture.add(exec.submit(tempServerCom));
                 System.out.println("ServerThread added new host " + id);
                 id++;
             }
@@ -128,7 +135,8 @@ public class ServerThread implements Callable<String> {
                     socket.setSoTimeout(1000);
                     ServerComThread tempServerCom = new ServerComThread(socket, id);
                     serverCom.add(tempServerCom);
-                    serverComFuture.add(exec.submit(tempServerCom));
+                    exec.submit(tempServerCom);
+                    //serverComFuture.add(exec.submit(tempServerCom));
                     System.out.println("ServerThread added new host " + id);
                     id++;
                     break;
@@ -140,6 +148,38 @@ public class ServerThread implements Callable<String> {
             } while (true);
         }
 
+         */
+
+        // If not currently waiting for new host, start
+        //System.out.println("ATTEMPTING NEW CONNECTION");
+        if (serverAwait == null)
+        {
+            serverAwait = new ServerAwait(serverSocket);
+            serverAwaitFuture = awaitExec.submit(serverAwait);
+        }
+
+        // If no new connections formed, start waiting again
+        else if (serverAwait.status.equals("NoNewConnections"))
+        {
+            serverAwait = new ServerAwait(serverSocket);
+            serverAwaitFuture = awaitExec.submit(serverAwait);
+        }
+
+        else if (serverAwaitFuture.isDone())
+        {
+            ServerComThread tempCom = serverAwaitFuture.get();
+            serverCom.add(tempCom);
+            exec.submit(tempCom);
+
+            serverAwait = new ServerAwait(serverSocket);
+            serverAwaitFuture = awaitExec.submit(serverAwait);
+            System.out.println("New host with ID " + tempCom.talksWith + " connected");
+
+        }
+        else
+        {
+            System.out.println("Awaiting host connection\nPlease connect to: " + serverAddress);
+        }
     }
 
     /**
@@ -186,15 +226,35 @@ public class ServerThread implements Callable<String> {
      */
 
     /**
+     * @deprecated Use {@link #sendCommandTo(ServerComThread, String)} instead, offers better reliability if order of communication threads changes for whatever reason.
      * Sends given command to Server Communication Thread responsible for remote host of given ID
      * @param hostId ID of remote host to give command to
      * @param command Command to give
      */
+    @Deprecated
     public void sendCommandTo(int hostId, String command)
     {
-        serverCom.get(hostId).receiveCommands(command);
-        //System.out.println("ServerThread sent command " + command + " to " + hostId);
+        if (!serverCom.get(hostId).assumeDead)
+        {
+            serverCom.get(hostId).receiveCommands(command);
+            System.out.println("ServerThread sent command " + command + " to " + hostId);
+        }
     }
+
+    /**
+     * Sends given command to Server Communication Thread responsible for remote host of given ID
+     * @param com communication thread that talks with the host to send the command to
+     * @param command Command to give
+     */
+    public void sendCommandTo(ServerComThread com, String command)
+    {
+        if (!com.assumeDead)
+        {
+            com.receiveCommands(command);
+            System.out.println("ServerThread sent command " + command + " to " + com.talksWith);
+        }
+    }
+
 
     @Override
     public String call() throws Exception {
@@ -244,10 +304,12 @@ public class ServerThread implements Callable<String> {
         }
 
         int delayCounter = 1;
-        addNewRemoteHost(); // wait for at least 1 client to connect before starting normal operations loop
         while (keepAlive)
         {
+            delayCounter++;
+            addNewRemoteHost();
 
+            /*
             if (serverCom.isEmpty())
             {
                 addNewRemoteHost();
@@ -269,59 +331,40 @@ public class ServerThread implements Callable<String> {
 
                 sendCommandTo(0, "HOST_START_TASK");
                 sendCommandTo(0, "3");
-
-                /*
-                sendCommandTo(0, "HOST_START_TASK");
-                sendCommandTo(0, "8");
-                sendCommandTo(0, "HOST_RETURN_TASK");
-                sendCommandTo(0, "0");
-
-                 */
-
-
-                addNewRemoteHost();
-                sendCommandTo(1, "HOST_START_TASK");
-                sendCommandTo(1, "1");
-                /*
-                sendCommandTo(1, "HOST_START_TASK");
-                sendCommandTo(1, "7");
-                sendCommandTo(1, "HOST_START_TASK");
-                sendCommandTo(1, "5");
-
-                 */
-
-
-                //sendCommandTo(0, "EXIT_THREAD");
             }
+
+             */
 
             // can't have sleep here either, else it just instaquits
             // nevermind, it just decides to fix itself. cool. really cool.
             // I don't know why, but this can't be at the beginning or end of the loop, so instead it has to just awkwardly sit in the middle here
             Thread.sleep(1000);
-            System.out.println("SERVER MAIN LOOP");
+            //System.out.println("SERVER MAIN LOOP");
+            //System.out.println(serverCom);
 
-            sendCommandTo(serverCom.get(0).talksWith, "HOST_START_TASK");
-            sendCommandTo(serverCom.get(0).talksWith, String.valueOf(delayCounter));
-            delayCounter++;
+            //sendCommandTo(serverCom.get(0).talksWith, "HOST_START_TASK");
+            //sendCommandTo(serverCom.get(0).talksWith, String.valueOf(delayCounter));
+
             //sendCommandTo(serverCom.get(1).talksWith, "HOST_START_TASK");
             //sendCommandTo(serverCom.get(1).talksWith, String.valueOf(delayCounter));
             //System.out.println("test");
             //addNewRemoteHost();
 
-
-
-
-            // do whatever here send commands or whatnot, or just do it from outside, not like anyone will care
-
-
-
-            // update database
             for (ServerComThread com : serverCom)
             {
-                sendCommandTo(com.talksWith, "HOST_RETURN_ALL_TASKS");
+                //System.out.println(com);
+                // ping host to check if he's still alive
+                if (delayCounter == 5)
+                {
+                    System.out.println("Pinging hosts");
+                    sendCommandTo(com, "PING");
+                }
+
+                // update database
+                sendCommandTo(com, "HOST_RETURN_ALL_TASKS");
                 ArrayList<ArrayList<String>> taskDummyArray = com.getSerializationArrayAll();
                 //System.out.println("TASK DUMMY ARRAY " + taskDummyArray);
-                if (taskDummyArray.isEmpty()) break;
+                //if (taskDummyArray.isEmpty()) break;
                 //System.out.println("TASK DUMMY ARRAY " + taskDummyArray);
                 for (ArrayList<String> task : taskDummyArray)
                 {
@@ -369,11 +412,12 @@ public class ServerThread implements Callable<String> {
             }
             //Thread.currentThread().wait(100); // this and sleep make somehow permanently brick the thread. I'm tired of this, so enjoy the spam if you ever put a print in here
             //break;
+            if (delayCounter == 5) delayCounter = 0;
         }
         for (ServerComThread com : serverCom)
         {
-            sendCommandTo(com.talksWith, "EXIT_THREAD");
-            sendCommandTo(com.talksWith, "HOST_EXIT_THREAD");
+            sendCommandTo(com, "EXIT_THREAD");
+            sendCommandTo(com, "HOST_EXIT_THREAD");
         }
         System.out.println("SERVERTHREADEND");
         exec.shutdownNow();

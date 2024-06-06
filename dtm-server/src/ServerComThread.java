@@ -43,6 +43,19 @@ public class ServerComThread implements Callable<String> {
      * Instead of serialization, you get this. Yes, it works, unlike serialization
      */
     private ArrayList<RemoteHostTaskDummy> thisIsYourSerializationNow = new ArrayList<>();
+
+    /**
+     * If host responded back to a ping
+     */
+    private boolean pingAck = true;
+    /**
+     * If host doesn't respond to a ping after sending one, tick up the counter
+     */
+    private int pingDelay = 0;
+    /**
+     * If pingDelay reaches a certain value, assume host is dead
+     */
+    public boolean assumeDead = false;
     ServerComThread(Socket socket, int id) throws IOException {
         this.socket = socket;
         this.talksWith = id;
@@ -139,8 +152,18 @@ public class ServerComThread implements Callable<String> {
         boolean keepAlive = true;
         while (keepAlive)
         {
+
             //System.out.println("SERVERCOM THREAD CHECKIN " + talksWith);
-            readResponses();
+            try
+            {
+                readResponses();
+            }
+            catch (IOException io) // if trying to read from a closed socket
+            {
+                System.out.println("Host ID " + talksWith + " socket reading error PING ACK " + pingDelay);
+                Thread.sleep(1000); // just so it emulates the normal time of 'operations'
+            }
+            //System.out.println("PING ACK " + pingDelay);
             //System.out.println(responseList);
 
             //System.out.println( responsesListIndex + " / " + responseList.size());
@@ -242,28 +265,42 @@ public class ServerComThread implements Callable<String> {
                             }
 
                         }
-                        //System.out.println("AFTER SERIALIZATION ALL " + thisIsYourSerializationNow);
-                        for (RemoteHostTaskDummy dummy : thisIsYourSerializationNow)
-                        {
-                            //System.out.println("SERIALIZATION " + dummy.getArray());
-                        }
+                        break;
+                    case "PING":
+                        pingAck = true;
+                        pingDelay = 0;
                         break;
                     case "HOST_EXITING":
                         keepAlive = false;
                         break;
                 }
+
             }
+
             if (!keepAlive) break;
 
             while (commandsListIndex < commandsList.size())
             {
                 //System.out.println("read command " + commandsList.get(commandsListIndex));
+                if (commandsList.get(commandsListIndex).equals("PING"))
+                {
+                    pingAck = false;
+                }
                 sendMsg.println(commandsList.get(commandsListIndex));
                 commandsListIndex++;
             }
 
+
+            if (!pingAck) pingDelay++;
+            if (pingDelay >= 10)
+            {
+                assumeDead = true;
+                keepAlive = false;
+                System.out.println("HOST " + talksWith + " is dead");
+            }
         }
         System.out.println("COMTHREADEND");
+        assumeDead = true;
         return null;
     }
 }

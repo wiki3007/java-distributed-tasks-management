@@ -74,7 +74,7 @@ public class RemoteHostMasterThread implements Callable<String> {
             try
             {
                 hostId = Integer.parseInt(receiveMsg.readLine());
-                System.out.println(hostId);
+                System.out.println("Assigned host ID: " + hostId);
             }
             catch (SocketTimeoutException waitTooLong)
             {
@@ -220,10 +220,20 @@ public class RemoteHostMasterThread implements Callable<String> {
         int delayCounter = 0;
         while (keepAlive)
         {
+            //System.out.println("TEATTE");
             doPriorityCheck();
 
             // read all pending commands
-            readCommands();
+            try
+            {
+                readCommands();
+            }
+            catch (IOException socketError)
+            {
+                System.out.println("Can't communicate with server, please restart connection or contact system administrator if error persists");
+                return null;
+            }
+
             //System.out.println("HOST AFTER READING COMMANDS (" + commandsListIndex + " / " + commandsList.size() + ")");
 
             // process all the still unfinished commands
@@ -305,6 +315,9 @@ public class RemoteHostMasterThread implements Callable<String> {
                         }
                         sendMsg.println(componentsArrayArray);
                         System.out.println("RETURNING ALL TASKS HOST " + hostId);
+                        break;
+                    case "PING":
+                        sendMsg.println("PING");
                         break;
                     default:
                         break;
