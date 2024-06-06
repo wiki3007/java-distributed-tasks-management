@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class ClientsListView {
     private ServerThread serverThread;
@@ -35,22 +38,22 @@ public class ClientsListView {
         this.createTable();
         TextField priorityField = new TextField();
 
+        /*
         Thread refreshTable = new Thread(() -> {
             Platform.runLater(() -> {
                 try {
-                    Thread.sleep(1500);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                try {
+                    System.out.println("Thread running");
+                    Thread.sleep(5000);
                     this.createTable();
                 } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
             });
         });
-        refreshTable.setDaemon(true);
-        refreshTable.start();
+
+         */
 
         HBox downButtonGroup = new HBox();
         HBox upButtonGroup = new HBox();

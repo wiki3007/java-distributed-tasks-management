@@ -52,6 +52,7 @@ public class DoneTasksListView {
             }
         });
 
+        /*
         Thread refreshTable = new Thread(() -> {
             try {
                 Thread.sleep(3000);
@@ -69,6 +70,8 @@ public class DoneTasksListView {
         });
         refreshTable.setDaemon(true);
         refreshTable.start();
+
+         */
 
         buttonGroups.getChildren().addAll(ganttButton, refreshButton);
         buttonGroups.setSpacing(10);
